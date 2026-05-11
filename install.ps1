@@ -53,7 +53,7 @@ Ensure-Command "npm"  "Install Node.js 20+ from https://nodejs.org and re-run."
 $repoUrl    = "https://github.com/fashaking/hash256_miner.git"
 $installDir = if ($env:HASH256_DIR) { $env:HASH256_DIR } else { Join-Path (Get-Location) "hash256_miner" }
 
-if (Test-Path (Join-Path $PSScriptRoot "package.json")) {
+if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "package.json"))) {
   $installDir = $PSScriptRoot
   Write-Info "Running from existing checkout at $installDir"
 } elseif (Test-Path (Join-Path $installDir ".git")) {
