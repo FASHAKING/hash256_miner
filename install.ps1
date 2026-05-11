@@ -68,8 +68,13 @@ if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "package.json"))) {
 
 Set-Location $installDir
 
+# On Windows, `npm` resolves to npm.ps1 which is blocked by the default
+# PowerShell execution policy. Use npm.cmd directly to sidestep that.
+$npmExe = if ($os -eq "windows") { "npm.cmd" } else { "npm" }
+
 Write-Info "Installing Node dependencies"
-npm install --no-audit --no-fund | Out-Host
+& $npmExe install --no-audit --no-fund | Out-Host
+if ($LASTEXITCODE -ne 0) { Write-Err "npm install failed"; exit $LASTEXITCODE }
 
 $envPath = Join-Path $installDir ".env"
 if (Test-Path $envPath) {
@@ -130,4 +135,4 @@ if ($launch -match "^(n|no)$") {
 }
 
 Write-Info "Starting miner (Ctrl+C to stop)"
-npm start
+& $npmExe start
