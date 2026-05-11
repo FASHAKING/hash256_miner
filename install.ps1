@@ -48,7 +48,50 @@ Write-Info "Detected OS: $os"
 
 Ensure-Command "git"  "Install git from https://git-scm.com/downloads and re-run."
 Ensure-Command "node" "Install Node.js 20+ from https://nodejs.org and re-run."
-Ensure-Command "npm"  "Install Node.js 20+ from https://nodejs.org and re-run."
+# On Windows we explicitly require npm.cmd. `npm` on PATH typically also
+# resolves to npm.ps1, which is blocked by the default execution policy and
+# therefore not actually usable.
+if ($os -eq "windows") {
+  if (-not (Get-Command "npm.cmd" -CommandType Application -ErrorAction SilentlyContinue)) {
+    Write-Err "npm.cmd not found on PATH. Reinstall Node.js 20+ from https://nodejs.org and re-run."
+    exit 1
+  }
+} else {
+  Ensure-Command "npm" "Install Node.js 20+ from https://nodejs.org and re-run."
+}
+
+# Resolve the npm executable up front. On Windows we use the *full path* to
+# npm.cmd so PowerShell's command discovery can't redirect us to npm.ps1.
+$npmPath     = $null
+$npmViaShell = $false
+if ($os -eq "windows") {
+  $found = Get-Command "npm.cmd" -CommandType Application -ErrorAction SilentlyContinue |
+           Select-Object -First 1
+  if ($found -and $found.Source) {
+    $npmPath = $found.Source
+  } elseif ($env:ComSpec) {
+    $npmPath     = $env:ComSpec
+    $npmViaShell = $true
+  } else {
+    Write-Err "Could not locate npm.cmd or cmd.exe."
+    exit 1
+  }
+} else {
+  $npmPath = "npm"
+}
+
+function Invoke-Npm {
+  param([Parameter(ValueFromRemainingArguments=$true)][string[]]$NpmArgs)
+  if ($npmViaShell) {
+    & $npmPath /c ("npm " + ($NpmArgs -join " "))
+  } else {
+    & $npmPath @NpmArgs
+  }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Err ("npm " + ($NpmArgs -join " ") + " failed (exit $LASTEXITCODE)")
+    exit $LASTEXITCODE
+  }
+}
 
 $repoUrl    = "https://github.com/fashaking/hash256_miner.git"
 $installDir = if ($env:HASH256_DIR) { $env:HASH256_DIR } else { Join-Path (Get-Location) "hash256_miner" }
@@ -59,22 +102,27 @@ if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "package.json"))) {
 } elseif (Test-Path (Join-Path $installDir ".git")) {
   Write-Info "Updating existing checkout at $installDir"
   Push-Location $installDir
-  git pull --ff-only | Out-Null
+  git pull --ff-only
+  $pullExit = $LASTEXITCODE
   Pop-Location
+  if ($pullExit -ne 0) {
+    Write-Err "git pull failed in $installDir (exit $pullExit)."
+    Write-Err "Resolve local changes or delete the directory and re-run."
+    exit $pullExit
+  }
 } else {
   Write-Info "Cloning repository into $installDir"
-  git clone --depth 1 $repoUrl $installDir | Out-Null
+  git clone --depth 1 $repoUrl $installDir
+  if ($LASTEXITCODE -ne 0) {
+    Write-Err "git clone failed (exit $LASTEXITCODE)."
+    exit $LASTEXITCODE
+  }
 }
 
 Set-Location $installDir
 
-# On Windows, `npm` resolves to npm.ps1 which is blocked by the default
-# PowerShell execution policy. Use npm.cmd directly to sidestep that.
-$npmExe = if ($os -eq "windows") { "npm.cmd" } else { "npm" }
-
 Write-Info "Installing Node dependencies"
-& $npmExe install --no-audit --no-fund | Out-Host
-if ($LASTEXITCODE -ne 0) { Write-Err "npm install failed"; exit $LASTEXITCODE }
+Invoke-Npm install --no-audit --no-fund
 
 $envPath = Join-Path $installDir ".env"
 if (Test-Path $envPath) {
@@ -135,4 +183,4 @@ if ($launch -match "^(n|no)$") {
 }
 
 Write-Info "Starting miner (Ctrl+C to stop)"
-& $npmExe start
+Invoke-Npm start
