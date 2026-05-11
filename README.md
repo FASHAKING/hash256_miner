@@ -38,39 +38,43 @@ npm run native:opencl
 
 ## Quick Start
 
-Install dependencies:
+### One-liner installer (auto-detects OS)
+
+The installer clones the repo, installs Node dependencies, prompts you for the
+required values (private key, RPC URLs, backend, workers), writes `.env`, and
+optionally launches the miner.
+
+Windows (PowerShell):
 
 ```powershell
+irm https://raw.githubusercontent.com/fashaking/hash256_miner/main/install.ps1 | iex
+```
+
+Linux / macOS (bash or zsh):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fashaking/hash256_miner/main/install.sh | bash
+```
+
+The installer requires `git`, `node` (>= 20) and `npm` on `PATH`. The private
+key prompt is masked. Set `HASH256_DIR=/path/to/dir` before running to override
+the install location.
+
+### Manual install
+
+```bash
 npm install
-```
-
-Create your local environment file:
-
-```powershell
-copy .env.example .env
-notepad .env
-```
-
-Edit `.env` and set at least:
-
-```text
-PRIVATE_KEY=0xYOUR_PRIVATE_KEY_WITH_ETH_FOR_GAS
-ETH_RPC_URL=https://your-read-rpc.example
-ETH_TX_RPC_URL=https://your-tx-rpc.example
-MINER_BACKEND=cuda
+cp .env.example .env   # Windows: copy .env.example .env
+# edit .env and set PRIVATE_KEY, ETH_RPC_URL, ETH_TX_RPC_URL, MINER_BACKEND
+npm start
 ```
 
 Never commit `.env`. It is ignored by git.
 
-Run the CUDA miner:
+Pick the backend explicitly with:
 
-```powershell
+```bash
 npm run native:cuda
-```
-
-Run the OpenCL miner:
-
-```powershell
 npm run native:opencl
 ```
 
